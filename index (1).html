@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>演唱會費用帳本</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; min-height: 100vh; }
+  .header { background: #fff; border-bottom: 1px solid #e5e5e5; padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .header h1 { font-size: 17px; font-weight: 600; }
+  .header .status { font-size: 12px; color: #888; }
+  .container { max-width: 800px; margin: 0 auto; padding: 1.25rem 1rem; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+  @media(min-width: 500px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat { background: #fff; border-radius: 10px; padding: 0.875rem 1rem; border: 1px solid #e8e8e8; }
+  .stat-label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .stat-value { font-size: 18px; font-weight: 600; }
+  .stat-value.pos { color: #1a9e6b; }
+  .stat-value.neg { color: #d94040; }
+
+  .form-card { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; padding: 1.25rem; margin-bottom: 1.25rem; }
+  .form-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 1rem; color: #444; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+  .form-row.one { grid-template-columns: 1fr; }
+  .field label { display: block; font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 500; }
+  .field input { width: 100%; padding: 9px 11px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: #fafafa; color: #1a1a1a; outline: none; transition: border-color .15s; }
+  .field input:focus { border-color: #555; background: #fff; }
+  .section-sep { font-size: 11px; font-weight: 600; color: #aaa; letter-spacing: .05em; padding: 8px 0 6px; border-bottom: 1px solid #f0f0f0; margin-bottom: 10px; }
+  .btn-row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+  button { font-size: 13px; padding: 8px 18px; border-radius: 8px; border: 1px solid #ddd; background: #fff; color: #333; cursor: pointer; font-weight: 500; transition: all .15s; }
+  button:hover { background: #f5f5f5; }
+  button.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  button.primary:hover { background: #333; }
+  button.primary:disabled { background: #aaa; border-color: #aaa; cursor: not-allowed; }
+  button.del { color: #d94040; border-color: transparent; padding: 4px 8px; font-size: 12px; }
+  button.del:hover { background: #fff0f0; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 99px; font-size: 13px; font-weight: 500; z-index: 999; white-space: nowrap; pointer-events: none; }
+  .toast.ok { background: #1a1a1a; color: #fff; }
+  .toast.err { background: #d94040; color: #fff; }
+
+  .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  thead th { font-size: 11px; font-weight: 600; color: #888; text-align: right; padding: 10px 12px; background: #fafafa; border-bottom: 1px solid #f0f0f0; }
+  thead th:nth-child(2) { text-align: left; }
+  thead th:first-child { text-align: left; }
+  tbody tr { border-bottom: 1px solid #f5f5f5; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #fafafa; }
+  tbody td { padding: 9px 12px; text-align: right; vertical-align: middle; }
+  tbody td:first-child { text-align: left; color: #888; font-size: 12px; white-space: nowrap; }
+  tbody td:nth-child(2) { text-align: left; min-width: 200px; word-break: break-word; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; font-weight: 600; margin-right: 5px; }
+  .bdep { background: #e6f7ef; color: #1a9e6b; }
+  .bexp { background: #eaf1fb; color: #2a6abf; }
+  .bpos { color: #1a9e6b; font-weight: 600; }
+  .bneg { color: #d94040; font-weight: 600; }
+  .empty { text-align: center; padding: 3rem; color: #aaa; font-size: 14px; }
+  .loading-row td { text-align: center; padding: 2rem; color: #aaa; font-size: 14px; }
+
+  .view-note { text-align: center; padding: 1.5rem; color: #aaa; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎵 演唱會費用帳本</h1>
+  <span class="status" id="status">連線中...</span>
+</div>
+
+<div class="container">
+  <div class="stats" id="stats">
+    <div class="stat"><div class="stat-label">目前餘額</div><div class="stat-value">—</div></div>
+    <div class="stat"><div class="stat-label">累計儲值</div><div class="stat-value">—</div></div>
+    <div class="stat"><div class="stat-label">累計支出</div><div class="stat-value">—</div></div>
+    <div class="stat"><div class="stat-label">記錄筆數</div><div class="stat-value">—</div></div>
+  </div>
+
+  <div class="form-card" id="form-section">
+    <h2>新增記錄</h2>
+    <div class="form-row">
+      <div class="field"><label>日期</label><input type="date" id="f-date"></div>
+      <div class="field"><label>項目名稱</label><input type="text" id="f-item" placeholder="例：ATM入金、演唱會票..."></div>
+    </div>
+    <div class="section-sep">儲值 / 入金</div>
+    <div class="form-row one">
+      <div class="field"><label>儲值金額</label><input type="number" id="f-deposit" placeholder="0" min="0"></div>
+    </div>
+    <div class="section-sep">支出</div>
+    <div class="form-row three">
+      <div class="field"><label>票價</label><input type="number" id="f-ticket" placeholder="0" min="0"></div>
+      <div class="field"><label>郵資</label><input type="number" id="f-postage" placeholder="0" min="0"></div>
+      <div class="field"><label>手續費</label><input type="number" id="f-fee" placeholder="0" min="0"></div>
+    </div>
+    <div class="btn-row">
+      <button onclick="clearForm()">清除</button>
+      <button class="primary" id="save-btn" onclick="addRecord()">儲存記錄</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>日期</th><th>項目</th><th>儲值金額</th><th>票價/郵資</th><th>手續費</th><th>餘額</th><th></th>
+        </tr></thead>
+        <tbody id="tbody">
+          <tr class="loading-row"><td colspan="7">資料載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCEH5kxqMttOdl8iX9UKziVgCWLi33sYaw",
+  authDomain: "emily-s-trade.firebaseapp.com",
+  projectId: "emily-s-trade",
+  storageBucket: "emily-s-trade.firebasestorage.app",
+  messagingSenderId: "553507955658",
+  appId: "1:553507955658:web:bd8e47b763c4873b7ee533"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const col = collection(db, "records");
+
+const SEED = [
+  {date:'2023/02/28',item:'現金交付',deposit:10000,ticket:0,fee:0,order:1},
+  {date:'2023/02/28',item:'4/26 Ruru ballad 午晩場',deposit:0,ticket:10000,fee:500,order:2},
+  {date:'2023/04/10',item:'JR rail pass 7-day',deposit:33610,ticket:0,fee:0,order:3},
+  {date:'2023/05/07',item:'Richmond Hotel',deposit:0,ticket:2900,fee:0,order:4},
+  {date:'2023/05/17',item:'Ruru Birthday event',deposit:0,ticket:9400,fee:950,order:5},
+  {date:'2023/08/07',item:'レターパック周邊寄送運費',deposit:0,ticket:370,fee:0,order:6},
+  {date:'2023/08/08',item:'Juice秋控 (廣島*2 仙台*1)',deposit:0,ticket:22500,fee:2500,order:7},
+  {date:'2023/09/12',item:'Juice=Juice 10th event (2張)',deposit:0,ticket:11400,fee:950,order:8},
+  {date:'2023/10/10',item:'ATM入金',deposit:60000,ticket:0,fee:0,order:9},
+  {date:'2023/10/25',item:'レターパック寄送運費',deposit:0,ticket:370,fee:0,order:10},
+  {date:'2023/11/15',item:'レターパック寄送運費',deposit:0,ticket:370,fee:0,order:11},
+  {date:'2024/03/08',item:'Juice春控 大阪*1',deposit:0,ticket:0,fee:8530,order:12},
+  {date:'2024/04/24',item:'レターパック寄送運費',deposit:0,ticket:370,fee:0,order:13},
+  {date:'2024/06/07',item:'レターパック寄送運費',deposit:0,ticket:370,fee:0,order:14},
+  {date:'2024/06/16',item:'JR East-South Hokkaido Rail Pass 6-days',deposit:35000,ticket:0,fee:0,order:15},
+  {date:'2024/07/16',item:'ルルウタ',deposit:0,ticket:5200,fee:600,order:16},
+  {date:'2024/08/06',item:"娘。'24 コンサートツアー秋*8",deposit:0,ticket:0,fee:63420,order:17},
+  {date:'2024/08/07',item:'レターパック寄送運費',deposit:0,ticket:370,fee:0,order:18},
+  {date:'2024/08/11',item:'ATM入金',deposit:40000,ticket:0,fee:0,order:19},
+  {date:'2023/08/20',item:'Juice秋控 2024',deposit:0,ticket:0,fee:17460,order:20},
+  {date:'2024/10/28',item:'レターパック(ライト)寄送運費',deposit:0,ticket:430,fee:0,order:21},
+  {date:'2024/11/11',item:'レターパック(プラス)寄送運費',deposit:0,ticket:600,fee:0,order:22},
+  {date:'2024/11/13',item:'ATM入金',deposit:50000,ticket:0,fee:0,order:23},
+  {date:'2025/06/22',item:'ハロ！コン 2025',deposit:0,ticket:0,fee:9730,order:24},
+  {date:'2025/08/01',item:'TOUR 2025 Queen of Hearts',deposit:0,ticket:0,fee:15560,order:25},
+  {date:'2025/09/16',item:'工藤由愛 Birthday event',deposit:0,ticket:0,fee:10500,order:26},
+  {date:'2025/08/13',item:'レターパック(ライト)寄送運費',deposit:0,ticket:430,fee:0,order:27},
+  {date:'2025/10/12',item:'現金交付',deposit:8250,ticket:0,fee:0,order:28},
+  {date:'2025/11/05',item:'レターパック(ライト)寄送運費',deposit:0,ticket:430,fee:0,order:29},
+  {date:'2025/12/28',item:'るるウタ',deposit:0,ticket:0,fee:6400,order:30},
+  {date:'2025/12/28',item:'るるウタ',deposit:0,ticket:0,fee:5900,order:31},
+  {date:'2026/02/04',item:'ひなフェス',deposit:0,ticket:0,fee:10130,order:32},
+  {date:'2026/02/06',item:'現金交付',deposit:50000,ticket:0,fee:0,order:33},
+  {date:'2026/04/10',item:'Juice=Juice Concert 2026 UP TO 11 MORE！',deposit:0,ticket:0,fee:10130,order:34},
+  {date:'2026/04/10',item:'レターパック(ライト)寄送運費',deposit:0,ticket:430,fee:0,order:35},
+  {date:'2026/04/24',item:'台灣5/16前方席代付',deposit:7500,ticket:0,fee:0,order:36},
+  {date:'2026/04/30',item:'Ruru Birthday event',deposit:0,ticket:0,fee:5400,order:37},
+];
+
+let seeded = false;
+let records = [];
+
+function fmt(n){ return n===0?'':'$'+n.toLocaleString(); }
+function fmtB(n){ return (n>=0?'$':'-$')+Math.abs(n).toLocaleString(); }
+
+function calcBalances(data){
+  let bal=0;
+  return data.map(r=>{ bal+=r.deposit-r.ticket-r.fee; return {...r,balance:bal}; });
+}
+
+function render(data){
+  const withBal = calcBalances(data);
+  const tbody = document.getElementById('tbody');
+  if(data.length===0){
+    tbody.innerHTML='<tr><td colspan="7" class="empty">尚無記錄</td></tr>';
+  } else {
+    tbody.innerHTML = withBal.map(r=>{
+      const isDep = r.deposit>0;
+      const bc = r.balance<0?'bneg':'bpos';
+      return `<tr>
+        <td>${r.date}</td>
+        <td title="${r.item}"><span class="badge ${isDep?'bdep':'bexp'}">${isDep?'入金':'支出'}</span>${r.item}</td>
+        <td>${fmt(r.deposit)}</td>
+        <td>${fmt(r.ticket)}</td>
+        <td>${fmt(r.fee)}</td>
+        <td class="${bc}">${fmtB(r.balance)}</td>
+        <td><button class="del" onclick="window._del('${r._id}')">刪除</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  const last = withBal[withBal.length-1];
+  const bal = last?last.balance:0;
+  const totalIn = data.reduce((s,r)=>s+r.deposit,0);
+  const totalOut = data.reduce((s,r)=>s+r.ticket+r.fee,0);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="stat-label">目前餘額</div><div class="stat-value ${bal<0?'neg':'pos'}">${fmtB(bal)}</div></div>
+    <div class="stat"><div class="stat-label">累計儲值</div><div class="stat-value pos">$${totalIn.toLocaleString()}</div></div>
+    <div class="stat"><div class="stat-label">累計支出</div><div class="stat-value neg">$${totalOut.toLocaleString()}</div></div>
+    <div class="stat"><div class="stat-label">記錄筆數</div><div class="stat-value">${data.length} 筆</div></div>
+  `;
+}
+
+function toast(msg, type='ok'){
+  const el = document.createElement('div');
+  el.className='toast '+type;
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),2500);
+}
+
+window._del = async function(id){
+  if(!confirm('確定要刪除這筆記錄？')) return;
+  try {
+    await deleteDoc(doc(db,'records',id));
+    toast('已刪除');
+  } catch(e){
+    toast('刪除失敗','err');
+  }
+};
+
+window.clearForm = function(){
+  ['f-item','f-deposit','f-ticket','f-postage','f-fee'].forEach(id=>document.getElementById(id).value='');
+};
+
+window.addRecord = async function(){
+  const date = document.getElementById('f-date').value.replace(/-/g,'/');
+  const item = document.getElementById('f-item').value.trim();
+  const deposit = parseInt(document.getElementById('f-deposit').value)||0;
+  const ticket = (parseInt(document.getElementById('f-ticket').value)||0)+(parseInt(document.getElementById('f-postage').value)||0);
+  const fee = parseInt(document.getElementById('f-fee').value)||0;
+  if(!date||!item){ toast('請填寫日期和項目名稱','err'); return; }
+  if(deposit===0&&ticket===0&&fee===0){ toast('請至少填寫一個金額','err'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.disabled=true;
+  btn.textContent='儲存中...';
+  try {
+    const order = records.length>0 ? Math.max(...records.map(r=>r.order||0))+1 : 1;
+    await addDoc(col,{date,item,deposit,ticket,fee,order,createdAt:Date.now()});
+    window.clearForm();
+    toast('記錄已儲存！');
+  } catch(e){
+    toast('儲存失敗，請稍後再試','err');
+  }
+  btn.disabled=false;
+  btn.textContent='儲存記錄';
+};
+
+const q = query(col, orderBy('order','asc'));
+onSnapshot(q, async (snap)=>{
+  records = snap.docs.map(d=>({...d.data(),_id:d.id}));
+  if(records.length===0 && !seeded){
+    seeded=true;
+    document.getElementById('status').textContent='初始化資料...';
+    for(const r of SEED){ await addDoc(col,r); }
+    return;
+  }
+  render(records);
+  document.getElementById('status').textContent='已連線 ✓';
+}, err=>{
+  document.getElementById('status').textContent='連線失敗';
+  toast('無法連接資料庫','err');
+});
+
+document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
