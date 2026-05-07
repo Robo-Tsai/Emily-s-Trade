@@ -18,6 +18,8 @@
   .stat-value { font-size: 18px; font-weight: 600; }
   .stat-value.pos { color: #1a9e6b; }
   .stat-value.neg { color: #d94040; }
+
+  /* 密碼鎖 */
   .lock-bar { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 10px 14px; margin-bottom: 1.25rem; flex-wrap: wrap; }
   .lock-bar .lock-label { font-size: 13px; color: #888; flex: 1; min-width: 80px; }
   .lock-bar input { font-size: 13px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 7px; width: 140px; outline: none; background: #fafafa; }
@@ -27,6 +29,8 @@
   .lock-status { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
   .lock-status.locked { background: #fff3e0; color: #b85c00; }
   .lock-status.unlocked { background: #e6f7ef; color: #1a9e6b; }
+
+  /* 表單 */
   .form-card { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; padding: 1.25rem; margin-bottom: 1.25rem; transition: opacity .2s; }
   .form-card.disabled { opacity: 0.35; pointer-events: none; user-select: none; }
   .form-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 1rem; color: #444; }
@@ -43,11 +47,17 @@
   button.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
   button.primary:hover { background: #333; }
   button.primary:disabled { background: #aaa; border-color: #aaa; cursor: not-allowed; }
+  button.edit-btn { color: #2a6abf; border-color: transparent; padding: 4px 8px; font-size: 12px; }
+  button.edit-btn:hover { background: #eaf1fb; }
   button.del { color: #d94040; border-color: transparent; padding: 4px 8px; font-size: 12px; }
   button.del:hover { background: #fff0f0; }
+
+  /* Toast */
   .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 99px; font-size: 13px; font-weight: 500; z-index: 999; white-space: nowrap; pointer-events: none; }
   .toast.ok { background: #1a1a1a; color: #fff; }
   .toast.err { background: #d94040; color: #fff; }
+
+  /* 表格 */
   .table-wrap { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; overflow: hidden; }
   .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
@@ -60,6 +70,7 @@
   tbody td { padding: 9px 12px; text-align: right; vertical-align: middle; }
   tbody td:first-child { text-align: left; color: #888; font-size: 12px; white-space: nowrap; }
   tbody td:nth-child(2) { text-align: left; min-width: 220px; word-break: break-word; }
+  tbody td:last-child { white-space: nowrap; }
   .badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 99px; font-weight: 600; margin-right: 5px; }
   .bdep { background: #e6f7ef; color: #1a9e6b; }
   .bexp { background: #eaf1fb; color: #2a6abf; }
@@ -67,6 +78,13 @@
   .bneg { color: #d94040; font-weight: 600; }
   .empty { text-align: center; padding: 3rem; color: #aaa; font-size: 14px; }
   .loading-row td { text-align: center; padding: 2rem; color: #aaa; font-size: 14px; }
+
+  /* 編輯 Modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: #fff; border-radius: 14px; border: 1px solid #e8e8e8; padding: 1.5rem; width: 440px; max-width: 92vw; box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+  .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 1.25rem; }
+  .modal .form-row { margin-bottom: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; }
 </style>
 </head>
 <body>
@@ -92,7 +110,7 @@
   </div>
 
   <div class="form-card disabled" id="form-section">
-    <h2>新增記錄</h2>
+    <h2 id="form-title">新增記錄</h2>
     <div class="form-row">
       <div class="field"><label>日期</label><input type="date" id="f-date"></div>
       <div class="field"><label>項目名稱</label><input type="text" id="f-item" placeholder="例：ATM入金、演唱會票..."></div>
@@ -108,8 +126,8 @@
       <div class="field"><label>手續費</label><input type="number" id="f-fee" placeholder="0" min="0"></div>
     </div>
     <div class="btn-row">
-      <button onclick="clearForm()">清除</button>
-      <button class="primary" id="save-btn" onclick="addRecord()">儲存記錄</button>
+      <button onclick="cancelEdit()">取消</button>
+      <button class="primary" id="save-btn" onclick="saveRecord()">儲存記錄</button>
     </div>
   </div>
 
@@ -129,7 +147,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEH5kxqMttOdl8iX9UKziVgCWLi33sYaw",
@@ -140,8 +158,8 @@ const firebaseConfig = {
   appId: "1:553507955658:web:bd8e47b763c4873b7ee533"
 };
 
-// ★ 在這裡設定你的密碼，改成你想要的密碼 ★
-const ADMIN_PASSWORD = "manaruru";
+// ★ 在這裡修改你的密碼 ★
+const ADMIN_PASSWORD = "emily2024";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -150,6 +168,7 @@ const col = collection(db, "records");
 let isAdmin = false;
 let records = [];
 let seeded = false;
+let editingId = null; // 目前正在編輯的記錄 ID
 
 const SEED = [
   {date:'2023/02/28',item:'現金交付',deposit:10000,ticket:0,fee:0,order:1},
@@ -208,7 +227,11 @@ function render(data){
     tbody.innerHTML = withBal.map(r=>{
       const isDep = r.deposit>0;
       const bc = r.balance<0?'bneg':'bpos';
-      const delBtn = isAdmin ? `<button class="del" onclick="window._del('${r._id}')">刪除</button>` : '';
+      // 票價欄 = ticket（已包含票價+郵資合計），手續費欄 = fee
+      const actionBtns = isAdmin
+        ? `<button class="edit-btn" onclick="window._edit('${r._id}')">修改</button>
+           <button class="del" onclick="window._del('${r._id}')">刪除</button>`
+        : '';
       return `<tr>
         <td>${r.date}</td>
         <td title="${r.item}"><span class="badge ${isDep?'bdep':'bexp'}">${isDep?'入金':'支出'}</span>${r.item}</td>
@@ -216,10 +239,11 @@ function render(data){
         <td>${fmt(r.ticket)}</td>
         <td>${fmt(r.fee)}</td>
         <td class="${bc}">${fmtB(r.balance)}</td>
-        <td>${delBtn}</td>
+        <td>${actionBtns}</td>
       </tr>`;
     }).join('');
   }
+
   const last = withBal[withBal.length-1];
   const bal = last?last.balance:0;
   const totalIn = data.reduce((s,r)=>s+r.deposit,0);
@@ -240,6 +264,19 @@ function toast(msg, type='ok'){
   setTimeout(()=>el.remove(),2500);
 }
 
+function clearForm(){
+  editingId = null;
+  document.getElementById('form-title').textContent = '新增記錄';
+  document.getElementById('save-btn').textContent = '儲存記錄';
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  ['f-item','f-deposit','f-ticket','f-postage','f-fee'].forEach(id=>document.getElementById(id).value='');
+}
+
+window.cancelEdit = function(){
+  clearForm();
+  toast('已取消編輯');
+};
+
 window.checkPw = function(){
   const val = document.getElementById('pw-input').value;
   if(val === ADMIN_PASSWORD){
@@ -249,11 +286,28 @@ window.checkPw = function(){
     document.getElementById('lock-status').className = 'lock-status unlocked';
     document.getElementById('pw-input').value = '';
     render(records);
-    toast('已解鎖！可以新增和刪除記錄');
+    toast('已解鎖！可以新增、修改和刪除記錄');
   } else {
     toast('密碼錯誤','err');
     document.getElementById('pw-input').value = '';
   }
+};
+
+window._edit = function(id){
+  if(!isAdmin){ toast('請先解鎖','err'); return; }
+  const r = records.find(x=>x._id===id);
+  if(!r) return;
+  editingId = id;
+  document.getElementById('form-title').textContent = '修改記錄';
+  document.getElementById('save-btn').textContent = '確認修改';
+  document.getElementById('f-date').value = r.date.replace(/\//g,'-');
+  document.getElementById('f-item').value = r.item;
+  document.getElementById('f-deposit').value = r.deposit || '';
+  document.getElementById('f-ticket').value = r.ticket || '';  // 票價/郵資合計
+  document.getElementById('f-postage').value = '';             // 郵資欄清空（已合併在ticket）
+  document.getElementById('f-fee').value = r.fee || '';
+  // 捲動到表單
+  document.getElementById('form-section').scrollIntoView({behavior:'smooth', block:'start'});
 };
 
 window._del = async function(id){
@@ -267,30 +321,38 @@ window._del = async function(id){
   }
 };
 
-window.clearForm = function(){
-  ['f-item','f-deposit','f-ticket','f-postage','f-fee'].forEach(id=>document.getElementById(id).value='');
-};
-
-window.addRecord = async function(){
+window.saveRecord = async function(){
   if(!isAdmin){ toast('請先解鎖','err'); return; }
   const date = document.getElementById('f-date').value.replace(/-/g,'/');
   const item = document.getElementById('f-item').value.trim();
   const deposit = parseInt(document.getElementById('f-deposit').value)||0;
+  // 票價 + 郵資 合計存入 ticket 欄
   const ticket = (parseInt(document.getElementById('f-ticket').value)||0)+(parseInt(document.getElementById('f-postage').value)||0);
   const fee = parseInt(document.getElementById('f-fee').value)||0;
   if(!date||!item){ toast('請填寫日期和項目名稱','err'); return; }
   if(deposit===0&&ticket===0&&fee===0){ toast('請至少填寫一個金額','err'); return; }
+
   const btn = document.getElementById('save-btn');
-  btn.disabled=true; btn.textContent='儲存中...';
+  btn.disabled=true;
+  btn.textContent='儲存中...';
+
   try {
-    const order = records.length>0 ? Math.max(...records.map(r=>r.order||0))+1 : 1;
-    await addDoc(col,{date,item,deposit,ticket,fee,order,createdAt:Date.now()});
-    window.clearForm();
-    toast('記錄已儲存！');
+    if(editingId){
+      // 修改模式
+      await updateDoc(doc(db,'records',editingId),{date,item,deposit,ticket,fee});
+      toast('已修改！');
+    } else {
+      // 新增模式
+      const order = records.length>0 ? Math.max(...records.map(r=>r.order||0))+1 : 1;
+      await addDoc(col,{date,item,deposit,ticket,fee,order,createdAt:Date.now()});
+      toast('記錄已儲存！');
+    }
+    clearForm();
   } catch(e){
-    toast('儲存失敗','err');
+    toast('儲存失敗，請稍後再試','err');
   }
-  btn.disabled=false; btn.textContent='儲存記錄';
+  btn.disabled=false;
+  btn.textContent = editingId ? '確認修改' : '儲存記錄';
 };
 
 const q = query(col, orderBy('order','asc'));
